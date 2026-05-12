@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+
+    // --- Helpers ---
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Check if user is signed in and email is verified
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    
+    // Admins are specific emails or determined by custom logic. For now, since Super Admin or Admin needs to be bootstrapped:
+    function isAdmin() { 
+      // Bootstrap: Replace with specific email or a generic user admin lookup if needed. For now allow any verified for bootstrapping, though normally we verify against an admins collection.
+      return isSignedIn() && exists(/databases/$(database)/documents/permissions/$(request.auth.uid)); 
+    }
+
+    // Role Checks
+    // In our app, role is stored in users/{userId}
+    function getUserRole() {
+      // NOTE: get() is expensive, but necessary if role dictates rules.
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null ? userDoc.data.role : 'Teacher';
+    }
+
+    function isHR() { return isSignedIn() && getUserRole() == 'HR'; }
+    function isManager() { return isSignedIn() && getUserRole() in ['Manager', 'HR', 'Admin', 'Super Admin']; }
+    function isAdminRole() { return isSignedIn() && getUserRole() in ['Admin', 'Super Admin']; }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'role', 'createdAt', 'updatedAt']) 
+          && data.name is string && data.name.size() <= 100
+          && data.email is string && data.email.size() <= 100
+          && data.role in ['Teacher', 'Manager', 'HR', 'Principal', 'Admin', 'Super Admin'];
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // users can update their own profile, except role
+      allow create: if isSignedIn() 
+          && request.auth.uid == userId 
+          && isValidUser(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (isAdminRole() || incoming().role == 'Teacher'); // prevent self-assigning admin
+
+      allow update: if isSignedIn() 
+          && request.auth.uid == userId 
+          && isValidUser(incoming())
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (isAdminRole() || incoming().role == existing().role)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'updatedAt']);
+    }
+
+    // --- Teacher Validation ---
+    function isValidTeacher(data) {
+      return data.keys().hasAll(['employeeId', 'name', 'email', 'createdAt', 'updatedAt'])
+        && data.employeeId is string && data.employeeId.size() <= 100
+        && data.name is string && data.name.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.status in ["Active", "Inactive", "On Leave"];
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (isHR() || isAdminRole());
+    }
+
+    // --- Attendance Validation ---
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['teacherId', 'date', 'status', 'createdAt', 'updatedAt'])
+        && data.teacherId is string
+        && data.date is string && data.date.size() <= 50
+        && data.status in ["Present", "Absent", "Late", "Half Day"];
+    }
+
+    match /attendance/{attendanceId} {
+      // Teachers can read their own attendance, Managers HR can read all
+      allow read: if isSignedIn() && (isManager() || resource.data.teacherId == request.auth.uid);
+      allow create: if isSignedIn() 
+        && isValidAttendance(incoming()) 
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time
+        && (isHR() || isAdminRole() || incoming().teacherId == request.auth.uid);
+      allow update: if isSignedIn() 
+        && isValidAttendance(incoming()) 
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (isHR() || isAdminRole() || (incoming().teacherId == request.auth.uid && existing().status != 'Closed'));
+      allow delete: if isAdminRole();
+    }
+
+    // --- Leave Validation ---
+    function isValidLeave(data) {
+      return data.keys().hasAll(['teacherId', 'type', 'startDate', 'endDate', 'days', 'status', 'appliedOn', 'createdAt', 'updatedAt'])
+        && data.type in ["Sick", "Casual", "Paid", "Emergency"]
+        && data.status in ["Pending", "Approved", "Rejected"];
+    }
+
+    match /leaves/{leaveId} {
+      // Similar access as attendance
+      allow read: if isSignedIn() && (isManager() || resource.data.teacherId == request.auth.uid);
+      
+      allow create: if isSignedIn() 
+        && isValidLeave(incoming())
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time
+        && incoming().teacherId == request.auth.uid; // Teacher requesting leave
+        
+      allow update: if isSignedIn() 
+        && isValidLeave(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdminRole() || isManager()) ||
+          (incoming().teacherId == request.auth.uid && existing().status == 'Pending' && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'startDate', 'endDate', 'days', 'reason', 'updatedAt']))
+        );
+      allow delete: if isAdminRole();
+    }
+
+    // --- Ticket Validation ---
+    function isValidTicket(data) {
+      return data.keys().hasAll(['teacherId', 'category', 'priority', 'status', 'subject', 'description', 'createdAt', 'updatedAt'])
+        && data.status in ["Open", "In Progress", "Resolved", "Closed"]
+        && data.priority in ["Low", "Medium", "High", "Critical"];
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isSignedIn() && (isManager() || resource.data.teacherId == request.auth.uid);
+      allow create: if isSignedIn() 
+        && isValidTicket(incoming())
+        && incoming().createdAt == request.time 
+        && incoming().updatedAt == request.time
+        && incoming().teacherId == request.auth.uid;
+      allow update: if isSignedIn() 
+        && isValidTicket(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (isManager() || incoming().teacherId == request.auth.uid);
+      allow delete: if isAdminRole();
+    }
+
+    // --- Payroll Validation ---
+    function isValidPayroll(data) {
+      return data.keys().hasAll(['teacherId', 'month', 'basicSalary', 'allowances', 'deductions', 'netPay', 'status', 'createdAt', 'updatedAt'])
+        && data.status in ["Paid", "Pending", "Processing"]
+        && data.basicSalary is number
+        && data.netPay is number;
+    }
+
+    match /payroll/{payrollId} {
+      allow read: if isSignedIn() && (isHR() || isAdminRole() || resource.data.teacherId == request.auth.uid);
+      allow create, update, delete: if isHR() || isAdminRole();
+    }
+
+    // Other collections like roles, permissions, holidays, devices
+    match /roles/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminRole();
+    }
+    match /permissions/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminRole();
+    }
+    match /holidays/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isHR() || isAdminRole();
+    }
+    match /devices/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isHR() || isAdminRole();
+    }
+  }
+}

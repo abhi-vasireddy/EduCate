@@ -1,0 +1,137 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile containing authentication and role data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["Teacher", "Manager", "HR", "Principal", "Admin", "Super Admin"] },
+        "avatar": { "type": "string" },
+        "department": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "email", "role", "createdAt", "updatedAt"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Details of a teacher",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "department": { "type": "string" },
+        "designation": { "type": "string" },
+        "salary": { "type": "number" },
+        "joiningDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "On Leave"] },
+        "fingerprintId": { "type": "string" },
+        "managerId": { "type": "string" },
+        "avatar": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["employeeId", "name", "email", "createdAt", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "Attendance Record",
+      "description": "Daily attendance record for a teacher",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "date": { "type": "string" },
+        "checkIn": { "type": "string" },
+        "checkOut": { "type": "string" },
+        "status": { "type": "string", "enum": ["Present", "Absent", "Late", "Half Day"] },
+        "workingHours": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "date", "createdAt", "updatedAt"]
+    },
+    "LeaveRequest": {
+      "title": "Leave Request",
+      "description": "Leave request submitted by a teacher",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "type": { "type": "string", "enum": ["Sick", "Casual", "Paid", "Emergency"] },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "days": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "reason": { "type": "string" },
+        "managerComments": { "type": "string" },
+        "appliedOn": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "type", "startDate", "endDate", "days", "status", "appliedOn", "createdAt", "updatedAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Support or HR ticket raised by a teacher",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "category": { "type": "string", "enum": ["Salary", "Attendance", "Technical", "Leave"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "status": { "type": "string", "enum": ["Open", "In Progress", "Resolved", "Closed"] },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "category", "priority", "status", "subject", "description", "createdAt", "updatedAt"]
+    },
+    "PayrollRecord": {
+      "title": "Payroll Record",
+      "description": "Monthly payroll data for a teacher",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "month": { "type": "string" },
+        "basicSalary": { "type": "number" },
+        "allowances": { "type": "number" },
+        "deductions": { "type": "number" },
+        "netPay": { "type": "number" },
+        "status": { "type": "string", "enum": ["Paid", "Pending", "Processing"] },
+        "paidOn": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teacherId", "month", "basicSalary", "allowances", "deductions", "netPay", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Stores user profiles."
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "Teacher" },
+      "description": "Main teacher database."
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "AttendanceRecord" },
+      "description": "Stores all attendance records."
+    },
+    "/leaves/{leaveId}": {
+      "schema": { "$ref": "LeaveRequest" },
+      "description": "Stores all leave requests."
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "Ticket" },
+      "description": "Stores all support tickets."
+    },
+    "/payroll/{payrollId}": {
+      "schema": { "$ref": "PayrollRecord" },
+      "description": "Stores all payroll records."
+    }
+  }
+}
