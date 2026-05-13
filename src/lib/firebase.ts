@@ -43,7 +43,7 @@ const firebaseConfig = getFirebaseConfig();
 const app = initializeApp(firebaseConfig);
 
 // CRITICAL: Ensure firestoreDatabaseId is supplied to getFirestore
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || (fallbackConfig as any).firestoreDatabaseId);
+export const db = getFirestore(app);
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
