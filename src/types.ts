@@ -1,11 +1,17 @@
-export type Role = 'teacher' | 'manager' | 'hr' | 'admin' | 'super_admin' | 'Teacher' | 'Manager' | 'HR' | 'Principal' | 'Admin' | 'Super Admin';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+// 1. Rename the type to UserRole to avoid collision
+export type UserRole = 'teacher' | 'manager' | 'hr' | 'admin' | 'super_admin' | 'Teacher' | 'Manager' | 'HR' | 'Principal' | 'Admin' | 'Super Admin';
 
 export interface User {
   id?: string;
   uid: string;
   name: string;
   email: string;
-  role: Role;
+  role: UserRole; // 2. Update reference here
   department: string;
   status: string;
   avatar: string;
@@ -22,9 +28,10 @@ export interface Role {
   permissions: string[];
   createdAt?: any;
   updatedAt?: any;
-  users?: number; // UI Compat
+  users?: number;
 }
 
+// ... rest of the file remains exactly as you had it
 export interface Teacher {
   id?: string;
   teacherId: string;
@@ -36,11 +43,11 @@ export interface Teacher {
   department: string;
   status: string;
   biometricEnabled: boolean;
-  name?: string; // For UI compat
+  name?: string;
   email?: string;
   phone?: string;
   avatar?: string;
-  employeeId?: string; // For UI compat
+  employeeId?: string;
 }
 
 export interface AttendanceRecord {
@@ -68,12 +75,12 @@ export interface LeaveRequest {
   managerComment: string;
   appliedAt: any;
   approvedAt: any;
-  type?: string;     // For UI compat
-  startDate?: string;// For UI compat
-  endDate?: string;  // For UI compat
-  days?: number;     // For UI compat
-  appliedOn?: string;// For UI compat
-  managerComments?: string; // Compat
+  type?: string;
+  startDate?: string;
+  endDate?: string;
+  days?: number;
+  appliedOn?: string;
+  managerComments?: string;
 }
 
 export interface Ticket {
@@ -87,7 +94,7 @@ export interface Ticket {
   description: string;
   assignedTo: string;
   createdAt: any;
-  subject?: string; // For UI compat
+  subject?: string;
 }
 
 export interface PayrollRecord {
@@ -100,9 +107,9 @@ export interface PayrollRecord {
   bonuses: number;
   netSalary: number;
   generatedAt: any;
-  allowances?: number;// UI compat
-  netPay?: number;    // UI compat
-  status?: string;    // UI compat
+  allowances?: number;
+  netPay?: number;
+  status?: string;
 }
 
 export interface Holiday {

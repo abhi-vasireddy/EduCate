@@ -1,35 +1,179 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, Eye, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter 
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { userService } from '../services/firebase/userService';
+import { authService } from '../services/firebase/authService';
+import { User, UserRole } from '../types';
+
+// Extended type to include the tempPassword we store in Firestore
+interface UserWithPassword extends User {
+  tempPassword?: string;
+}
 
 export function Teachers() {
-  const { teachers } = useAppStore();
+  const { addTeacher } = useAppStore();
+  const [allUsers, setAllUsers] = useState<UserWithPassword[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const filteredTeachers = teachers.filter(t => 
-    (t.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (t.department || '').toLowerCase().includes(searchTerm.toLowerCase())
+  // Subscribe to the 'users' collection for real-time updates
+  useEffect(() => {
+    const unsub = userService.subscribeToUsers((users) => {
+      setAllUsers(users as UserWithPassword[]);
+    });
+    return () => unsub();
+  }, []);
+
+  const [newStaff, setNewStaff] = useState({
+    name: '',
+    email: '',
+    password: '',
+    department: '',
+    role: 'Teacher' as UserRole,
+    employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}`
+  });
+
+  const handleSave = async () => {
+    if (!newStaff.name || !newStaff.email || !newStaff.password) {
+      alert("Please fill in Name, Email, and a Temporary Password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { user } = await authService.registerUser(newStaff.email, newStaff.password, {
+        name: newStaff.name,
+        role: newStaff.role,
+        department: newStaff.department,
+        employeeId: newStaff.employeeId,
+        status: 'Active',
+        tempPassword: newStaff.password 
+      });
+
+      await addTeacher({
+        uid: user.uid,
+        name: newStaff.name,
+        email: newStaff.email,
+        employeeId: newStaff.employeeId,
+        department: newStaff.department,
+        designation: newStaff.role,
+        status: 'Active',
+      });
+
+      setIsDialogOpen(false);
+      setNewStaff({ 
+        name: '', 
+        email: '', 
+        password: '', 
+        department: '', 
+        role: 'Teacher', 
+        employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}` 
+      });
+      alert("Staff member created successfully!");
+    } catch (error: any) {
+      // Handling specific Firebase errors for a better user experience
+      if (error.code === 'auth/email-already-in-use' || error.message.includes('email-already-in-use')) {
+        alert("This email address is already in use. Please try a different email.");
+      } else if (error.code === 'auth/weak-password') {
+        alert("The password is too weak. Please use at least 6 characters.");
+      } else {
+        console.error("Staff creation failed:", error);
+        alert("Failed to create staff: " + error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredUsers = allUsers.filter(u => 
+    (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Staff Directory</h1>
-          <p className="text-muted-foreground mt-1">Manage all teaching and non-teaching staff.</p>
+          <p className="text-muted-foreground mt-1">Manage all registered staff and users.</p>
         </div>
-        <Button className="shrink-0 gap-2">
-          <Plus className="w-4 h-4" /> Add Staff Member
-        </Button>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger>
+            <div className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2 cursor-pointer shadow-sm transition-colors">
+              <Plus className="w-4 h-4" /> Add Staff Member
+            </div>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add New Staff Member</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input 
+                  id="name" 
+                  placeholder="John Doe" 
+                  value={newStaff.name} 
+                  onChange={(e) => setNewStaff({...newStaff, name: e.target.value})} 
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="john@school.com" 
+                  value={newStaff.email} 
+                  onChange={(e) => setNewStaff({...newStaff, email: e.target.value})} 
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Temporary Password</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="Minimum 6 characters" 
+                  value={newStaff.password} 
+                  onChange={(e) => setNewStaff({...newStaff, password: e.target.value})} 
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dept">Department</Label>
+                <Input 
+                  id="dept" 
+                  placeholder="Administration" 
+                  value={newStaff.department} 
+                  onChange={(e) => setNewStaff({...newStaff, department: e.target.value})} 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={loading}>Cancel</Button>
+              <Button onClick={handleSave} disabled={loading}>
+                {loading ? "Creating Account..." : "Save Staff"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="border-border/50">
@@ -37,7 +181,7 @@ export function Teachers() {
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or department..."
+              placeholder="Search by name or email..."
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -45,146 +189,71 @@ export function Teachers() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="pl-6">Employee</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Contact</TableHead>
+                  <TableHead className="pl-6">User / Employee</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>System Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTeachers.map((teacher, i) => (
-                  <TableRow key={teacher.id} className="group hover:bg-muted/30 transition-colors">
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.uid} className="group hover:bg-muted/30 transition-colors">
                     <TableCell className="pl-6">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border border-border">
-                          <AvatarImage src={teacher.avatar} />
-                          <AvatarFallback>{teacher.name.charAt(0)}</AvatarFallback>
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{teacher.name}</p>
-                          <p className="text-xs text-muted-foreground">{teacher.employeeId}</p>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-xs text-muted-foreground">{user.employeeId || 'System User'}</p>
                         </div>
                       </div>
                     </TableCell>
+                    <TableCell className="text-sm">{user.email}</TableCell>
                     <TableCell>
-                      <p className="font-medium text-sm">{teacher.designation}</p>
-                      <p className="text-xs text-muted-foreground">{teacher.department}</p>
+                      <Badge variant="outline" className="capitalize">{user.role}</Badge>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm">{teacher.email}</p>
-                      <p className="text-xs text-muted-foreground">{teacher.phone}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        teacher.status === 'Active' ? 'default' : 
-                        teacher.status === 'On Leave' ? 'secondary' : 'destructive'
-                      } className={
-                        teacher.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-none border-0' :
-                        teacher.status === 'On Leave' ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 shadow-none border-0' :
-                        'bg-red-500/10 text-red-600 hover:bg-red-500/20 shadow-none border-0'
-                      }>
-                        {teacher.status}
+                      <Badge className={user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 border-0 shadow-none' : 'border-0'}>
+                        {user.status || 'Active'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger className={buttonVariants({ variant: "ghost", size: "icon", className: "opacity-0 group-hover:opacity-100 transition-opacity" })}>
+                        <DropdownMenuTrigger>
+                          <div className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-muted cursor-pointer transition-colors">
                             <MoreVertical className="h-4 w-4" />
+                          </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem render={<Link to={`/teachers/${teacher.id}`} className="flex items-center cursor-pointer" />}>
+                          <DropdownMenuItem asChild>
+                            <Link to={`/teachers/${user.uid}`} className="flex items-center cursor-pointer">
                               <Eye className="mr-2 h-4 w-4" /> View Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="flex items-center cursor-pointer">
-                            <Edit className="mr-2 h-4 w-4" /> Edit Details
+                            </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="flex items-center cursor-pointer text-destructive focus:text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Terminate
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete Account
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredTeachers.length === 0 && (
+                {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                      No staff members found matching your search.
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      No staff members found.
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </div>
-
-          {/* Mobile Card View */}
-          <div className="md:hidden flex flex-col divide-y divide-border/50">
-            {filteredTeachers.map((teacher) => (
-              <div key={teacher.id} className="p-4 space-y-4 hover:bg-muted/30 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border border-border">
-                      <AvatarImage src={teacher.avatar} />
-                      <AvatarFallback>{teacher.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-base">{teacher.name}</p>
-                      <p className="text-xs text-muted-foreground">{teacher.employeeId} • {teacher.department}</p>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className={buttonVariants({ variant: "ghost", size: "icon", className: "-mr-2" })}>
-                        <MoreVertical className="h-4 w-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem render={<Link to={`/teachers/${teacher.id}`} className="flex items-center cursor-pointer" />}>
-                          <Eye className="mr-2 h-4 w-4" /> View Profile
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center cursor-pointer">
-                        <Edit className="mr-2 h-4 w-4" /> Edit Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center cursor-pointer text-destructive focus:text-destructive">
-                        <Trash2 className="mr-2 h-4 w-4" /> Terminate
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Role</p>
-                    <p className="font-medium">{teacher.designation}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Status</p>
-                    <Badge variant={
-                      teacher.status === 'Active' ? 'default' : 
-                      teacher.status === 'On Leave' ? 'secondary' : 'destructive'
-                    } className={
-                      teacher.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-none border-0' :
-                      teacher.status === 'On Leave' ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 shadow-none border-0' :
-                      'bg-red-500/10 text-red-600 hover:bg-red-500/20 shadow-none border-0'
-                    }>
-                      {teacher.status}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="pt-2 flex flex-col gap-1 text-sm bg-muted/20 p-2 rounded-md">
-                  <p className="flex items-center justify-between"><span className="text-muted-foreground text-xs">Email</span> <span>{teacher.email}</span></p>
-                  <p className="flex items-center justify-between"><span className="text-muted-foreground text-xs">Phone</span> <span>{teacher.phone}</span></p>
-                </div>
-              </div>
-            ))}
-            {filteredTeachers.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground">
-                No staff members found matching your search.
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

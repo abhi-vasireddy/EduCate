@@ -28,14 +28,14 @@ export function Header() {
 
       <div className="flex items-center gap-4">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
-              )}
-            </Button>
+          {/* FIX 1: Removed asChild and the inner Button to prevent nested <button> tags */}
+          <DropdownMenuTrigger className="relative inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground h-10 w-10">
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
+            )}
           </DropdownMenuTrigger>
+          
           <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
             <div className="flex items-center justify-between p-2 font-medium border-b">
               <span>Notifications ({unreadCount})</span>
@@ -51,7 +51,15 @@ export function Header() {
                   <div className="flex items-center justify-between w-full">
                     <span className="font-semibold text-sm">{notification.title}</span>
                     {!notification.isRead && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => markNotificationRead(notification.id)}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6" 
+                        onClick={(e) => {
+                          e.stopPropagation(); // FIX 2: Added stopPropagation to prevent the dropdown from closing accidentally
+                          markNotificationRead(notification.id);
+                        }}
+                      >
                         <Check className="w-3 h-3" />
                       </Button>
                     )}
@@ -69,7 +77,7 @@ export function Header() {
         <div className="flex items-center gap-3 border-l border-border pl-4">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-none">{user?.name}</p>
-            <p className="text-xs text-muted-foreground mt-1">{user?.role}</p>
+            <p className="text-xs text-muted-foreground mt-1 capitalize">{user?.role}</p>
           </div>
           <Avatar>
             <AvatarImage src={user?.avatar} />
