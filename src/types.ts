@@ -18,6 +18,7 @@ export interface User {
   employeeId: string;
   managerId: string;
   createdAt: any;
+  tempPassword?: string;
 }
 
 export interface Role {
@@ -48,6 +49,7 @@ export interface Teacher {
   phone?: string;
   avatar?: string;
   employeeId?: string;
+  managerId?: string;
 }
 
 export interface AttendanceRecord {

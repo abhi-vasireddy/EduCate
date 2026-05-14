@@ -18,6 +18,13 @@ import {
   DialogFooter 
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select'; // Ensure this component is imported
 import { userService } from '../services/firebase/userService';
 import { authService } from '../services/firebase/authService';
 import { User, UserRole } from '../types';
@@ -48,12 +55,13 @@ export function Teachers() {
     password: '',
     department: '',
     role: 'Teacher' as UserRole,
+    managerId: '', // New field for reporting manager
     employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}`
   });
 
   const handleSave = async () => {
-    if (!newStaff.name || !newStaff.email || !newStaff.password) {
-      alert("Please fill in Name, Email, and a Temporary Password.");
+    if (!newStaff.name || !newStaff.email || !newStaff.password || !newStaff.managerId) {
+      alert("Please fill in Name, Email, Temporary Password, and select a Manager.");
       return;
     }
 
@@ -64,6 +72,7 @@ export function Teachers() {
         role: newStaff.role,
         department: newStaff.department,
         employeeId: newStaff.employeeId,
+        managerId: newStaff.managerId, // Pass managerId to user profile
         status: 'Active',
         tempPassword: newStaff.password 
       });
@@ -75,6 +84,7 @@ export function Teachers() {
         employeeId: newStaff.employeeId,
         department: newStaff.department,
         designation: newStaff.role,
+        managerId: newStaff.managerId, // Pass managerId to teacher record
         status: 'Active',
       });
 
@@ -84,16 +94,14 @@ export function Teachers() {
         email: '', 
         password: '', 
         department: '', 
-        role: 'Teacher', 
+        role: 'Teacher',
+        managerId: '',
         employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}` 
       });
       alert("Staff member created successfully!");
     } catch (error: any) {
-      // Handling specific Firebase errors for a better user experience
       if (error.code === 'auth/email-already-in-use' || error.message.includes('email-already-in-use')) {
-        alert("This email address is already in use. Please try a different email.");
-      } else if (error.code === 'auth/weak-password') {
-        alert("The password is too weak. Please use at least 6 characters.");
+        alert("This email address is already in use.");
       } else {
         console.error("Staff creation failed:", error);
         alert("Failed to create staff: " + error.message);
@@ -118,6 +126,7 @@ export function Teachers() {
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger>
+            {/* Remove asChild and use the styled div as the clickable trigger */}
             <div className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2 cursor-pointer shadow-sm transition-colors">
               <Plus className="w-4 h-4" /> Add Staff Member
             </div>
@@ -164,6 +173,34 @@ export function Teachers() {
                   value={newStaff.department} 
                   onChange={(e) => setNewStaff({...newStaff, department: e.target.value})} 
                 />
+              </div>
+
+              {/* Reporting Manager Selection */}
+              <div className="grid gap-2">
+                <Label htmlFor="manager">Reporting Manager</Label>
+                <Select 
+                  value={newStaff.managerId} 
+                  // Use ?? '' to ensure a string is always passed to the state
+                  onValueChange={(val) => setNewStaff({...newStaff, managerId: val ?? ''})}
+                >
+                  <SelectTrigger id="manager">
+                    <SelectValue placeholder="Select a manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allUsers.length > 0 ? (
+                      allUsers.map((u) => (
+                        // Ensure u.uid exists before rendering the item
+                        u.uid && (
+                          <SelectItem key={u.uid} value={u.uid}>
+                            {u.name} ({u.role})
+                          </SelectItem>
+                        )
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>No users available</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
@@ -226,10 +263,10 @@ export function Teachers() {
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger>
-                          <div className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-muted cursor-pointer transition-colors">
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
                             <MoreVertical className="h-4 w-4" />
-                          </div>
+                          </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
                           <DropdownMenuItem asChild>
