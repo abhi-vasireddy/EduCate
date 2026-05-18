@@ -12,7 +12,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole; // 2. Update reference here
-  department: string;
+  designation: string;
   status: string;
   avatar: string;
   employeeId: string;
@@ -26,6 +26,7 @@ export interface Role {
   roleId: string;
   name: string;
   description: string;
+  designation?: string;
   permissions: string[];
   createdAt?: any;
   updatedAt?: any;

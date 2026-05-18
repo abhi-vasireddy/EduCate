@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -5,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, MoreVertical, Eye, Trash2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, Eye, Trash2, Briefcase, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
@@ -24,24 +29,22 @@ import {
   SelectItem, 
   SelectTrigger, 
   SelectValue 
-} from '@/components/ui/select'; // Ensure this component is imported
+} from '@/components/ui/select';
 import { userService } from '../services/firebase/userService';
 import { authService } from '../services/firebase/authService';
 import { User, UserRole } from '../types';
 
-// Extended type to include the tempPassword we store in Firestore
 interface UserWithPassword extends User {
   tempPassword?: string;
 }
 
 export function Teachers() {
-  const { addTeacher } = useAppStore();
+  const { addTeacher, roles, designations } = useAppStore();
   const [allUsers, setAllUsers] = useState<UserWithPassword[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Subscribe to the 'users' collection for real-time updates
   useEffect(() => {
     const unsub = userService.subscribeToUsers((users) => {
       setAllUsers(users as UserWithPassword[]);
@@ -53,38 +56,39 @@ export function Teachers() {
     name: '',
     email: '',
     password: '',
-    department: '',
-    role: 'Teacher' as UserRole,
-    managerId: '', // New field for reporting manager
+    designation: '', // Replaced department
+    role: '' as UserRole,
+    managerId: '',
     employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}`
   });
 
   const handleSave = async () => {
-    if (!newStaff.name || !newStaff.email || !newStaff.password || !newStaff.managerId) {
-      alert("Please fill in Name, Email, Temporary Password, and select a Manager.");
+    // Validation updated to check for role and designation instead of department
+    if (!newStaff.name || !newStaff.email || !newStaff.password || !newStaff.role || !newStaff.designation) {
+      alert("Please fill in all fields including Role and Designation.");
       return;
     }
 
     setLoading(true);
     try {
+      // Create Auth account and user profile
       const { user } = await authService.registerUser(newStaff.email, newStaff.password, {
         name: newStaff.name,
         role: newStaff.role,
-        department: newStaff.department,
+        designation: newStaff.designation, // Designation is now part of the profile
         employeeId: newStaff.employeeId,
-        managerId: newStaff.managerId, // Pass managerId to user profile
+        managerId: newStaff.managerId,
         status: 'Active',
         tempPassword: newStaff.password 
       });
 
+      // Create detailed teacher/staff record
       await addTeacher({
         uid: user.uid,
         name: newStaff.name,
         email: newStaff.email,
         employeeId: newStaff.employeeId,
-        department: newStaff.department,
-        designation: newStaff.role,
-        managerId: newStaff.managerId, // Pass managerId to teacher record
+        designation: newStaff.designation,
         status: 'Active',
       });
 
@@ -93,19 +97,15 @@ export function Teachers() {
         name: '', 
         email: '', 
         password: '', 
-        department: '', 
-        role: 'Teacher',
+        designation: '', 
+        role: '' as UserRole,
         managerId: '',
         employeeId: `EMP${Math.floor(1000 + Math.random() * 9000)}` 
       });
       alert("Staff member created successfully!");
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use' || error.message.includes('email-already-in-use')) {
-        alert("This email address is already in use.");
-      } else {
-        console.error("Staff creation failed:", error);
-        alert("Failed to create staff: " + error.message);
-      }
+      console.error("Staff creation failed:", error);
+      alert("Failed to create staff: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -125,11 +125,10 @@ export function Teachers() {
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger>
-            {/* Remove asChild and use the styled div as the clickable trigger */}
-            <div className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2 cursor-pointer shadow-sm transition-colors">
+          <DialogTrigger asChild>
+            <Button className="gap-2">
               <Plus className="w-4 h-4" /> Add Staff Member
-            </div>
+            </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
@@ -165,40 +164,53 @@ export function Teachers() {
                   onChange={(e) => setNewStaff({...newStaff, password: e.target.value})} 
                 />
               </div>
+
+              {/* System Role Selection */}
               <div className="grid gap-2">
-                <Label htmlFor="dept">Department</Label>
-                <Input 
-                  id="dept" 
-                  placeholder="Administration" 
-                  value={newStaff.department} 
-                  onChange={(e) => setNewStaff({...newStaff, department: e.target.value})} 
-                />
+                <Label>System Role</Label>
+                <Select onValueChange={(val) => setNewStaff({...newStaff, role: val as UserRole})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select access level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.name}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Reporting Manager Selection */}
+              {/* Designation Selection */}
+              <div className="grid gap-2">
+                <Label>Professional Designation</Label>
+                <Select onValueChange={(val) => setNewStaff({...newStaff, designation: val})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select title/subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {designations.map((d) => (
+                      <SelectItem key={d.id} value={d.name}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="manager">Reporting Manager</Label>
-                <Select 
-                  value={newStaff.managerId} 
-                  // Use ?? '' to ensure a string is always passed to the state
-                  onValueChange={(val) => setNewStaff({...newStaff, managerId: val ?? ''})}
-                >
+                <Select onValueChange={(val) => setNewStaff({...newStaff, managerId: val})}>
                   <SelectTrigger id="manager">
                     <SelectValue placeholder="Select a manager" />
                   </SelectTrigger>
                   <SelectContent>
-                    {allUsers.length > 0 ? (
-                      allUsers.map((u) => (
-                        // Ensure u.uid exists before rendering the item
-                        u.uid && (
-                          <SelectItem key={u.uid} value={u.uid}>
-                            {u.name} ({u.role})
-                          </SelectItem>
-                        )
-                      ))
-                    ) : (
-                      <SelectItem value="none" disabled>No users available</SelectItem>
-                    )}
+                    {allUsers.map((u) => u.uid && (
+                      <SelectItem key={u.uid} value={u.uid}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -206,7 +218,7 @@ export function Teachers() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={loading}>Cancel</Button>
               <Button onClick={handleSave} disabled={loading}>
-                {loading ? "Creating Account..." : "Save Staff"}
+                {loading ? "Creating..." : "Save Staff"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -218,7 +230,7 @@ export function Teachers() {
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search staff..."
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -226,72 +238,71 @@ export function Teachers() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="pl-6">User / Employee</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>System Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right pr-6">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.uid} className="group hover:bg-muted/30 transition-colors">
-                    <TableCell className="pl-6">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-border">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">{user.employeeId || 'System User'}</p>
-                        </div>
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="pl-6">User / Employee</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>System Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((user) => (
+                <TableRow key={user.uid} className="group hover:bg-muted/30 transition-colors">
+                  <TableCell className="pl-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 border border-border">
+                        <AvatarImage src={user.avatar} />
+                        <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.employeeId}</p>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 border-0 shadow-none' : 'border-0'}>
-                        {user.status || 'Active'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/teachers/${user.uid}`} className="flex items-center cursor-pointer">
-                              <Eye className="mr-2 h-4 w-4" /> View Profile
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="flex items-center cursor-pointer text-destructive focus:text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Account
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredUsers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      No staff members found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+                      {user.designation || 'Staff'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-3.5 h-3.5 text-primary/70" />
+                      <span className="text-sm">{user.role}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600 border-0 shadow-none' : ''}>
+                      {user.status || 'Active'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right pr-6">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link to={`/teachers/${user.uid}`} className="flex items-center cursor-pointer">
+                            <Eye className="mr-2 h-4 w-4" /> Profile
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

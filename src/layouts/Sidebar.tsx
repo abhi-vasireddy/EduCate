@@ -1,4 +1,9 @@
-import { useEffect } from 'react';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useEffect, useMemo } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -18,21 +23,22 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 
+// 1. Define the nav items with their required permission keys
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Users, label: 'Teachers', path: '/teachers' },
-  { icon: CalendarCheck, label: 'Attendance', path: '/attendance' },
-  { icon: CalendarDays, label: 'Leaves', path: '/leaves' },
-  { icon: TicketCheck, label: 'Tickets', path: '/tickets' },
-  { icon: Network, label: 'Hierarchy', path: '/hierarchy' },
-  { icon: ShieldCheck, label: 'Roles', path: '/roles' },
-  { icon: Banknote, label: 'Payroll', path: '/payroll' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', permission: 'view_dashboard' },
+  { icon: Users, label: 'Teachers', path: '/teachers', permission: 'view_teachers' },
+  { icon: CalendarCheck, label: 'Attendance', path: '/attendance', permission: 'view_attendance' },
+  { icon: CalendarDays, label: 'Leaves', path: '/leaves', permission: 'view_leaves' },
+  { icon: TicketCheck, label: 'Tickets', path: '/tickets', permission: 'view_tickets' },
+  { icon: Network, label: 'Hierarchy', path: '/hierarchy', permission: 'view_hierarchy' },
+  { icon: ShieldCheck, label: 'Roles', path: '/roles', permission: 'view_roles' },
+  { icon: Banknote, label: 'Payroll', path: '/payroll', permission: 'view_payroll' },
+  { icon: Settings, label: 'Settings', path: '/settings', permission: 'view_settings' },
 ];
 
 export function Sidebar() {
   const logout = useAppStore(state => state.logout);
-  const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, user, roles } = useAppStore(); // 2. Access user and roles from store
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -40,6 +46,23 @@ export function Sidebar() {
     await logout();
     navigate('/login');
   };
+
+  // 3. Filter navigation items based on current user's permissions
+  const filteredNavItems = useMemo(() => {
+    if (!user) return [];
+    
+    // Find the role object that matches the user's role string
+    const userRoleData = roles.find(r => r.name === user.role);
+    const userPermissions = userRoleData?.permissions || [];
+
+    // 'Admin' and 'Super Admin' typically see everything, 
+    // otherwise filter by specific permission strings
+    if (user.role === 'Admin' || user.role === 'Super Admin' || user.role === 'super_admin') {
+      return navItems;
+    }
+
+    return navItems.filter(item => userPermissions.includes(item.permission));
+  }, [user, roles]);
 
   // Close sidebar on route change on mobile
   useEffect(() => {
@@ -88,7 +111,7 @@ export function Sidebar() {
         </div>
         
         <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto pb-4 scrollbar-thin scrollbar-thumb-muted-foreground/10 hover:scrollbar-thumb-muted-foreground/20">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

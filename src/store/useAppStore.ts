@@ -1,5 +1,10 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { create } from 'zustand';
-import { User, Teacher, AttendanceRecord, LeaveRequest, Ticket, PayrollRecord, Notification, Role } from '../types';
+import { User, Teacher, AttendanceRecord, LeaveRequest, Ticket, PayrollRecord, Notification, Role, Holiday } from '../types';
 import { authService } from '../services/firebase/authService';
 import { teacherService } from '../services/firebase/teacherService';
 import { attendanceService } from '../services/firebase/attendanceService';
@@ -8,6 +13,9 @@ import { ticketService } from '../services/firebase/ticketService';
 import { payrollService } from '../services/firebase/payrollService';
 import { notificationService } from '../services/firebase/notificationService';
 import { roleService } from '../services/firebase/roleService';
+import { designationService, Designation } from '../services/firebase/designationService';
+// 1. Import the new Holiday service
+import { holidayService } from '../services/firebase/holidayService';
 
 interface AppState {
   user: User | null;
@@ -18,6 +26,9 @@ interface AppState {
   payroll: PayrollRecord[];
   notifications: Notification[];
   roles: Role[];
+  designations: Designation[];
+  // 2. Add holidays to the state interface
+  holidays: Holiday[];
   theme: 'light' | 'dark' | 'system';
   sidebarOpen: boolean;
   loading: boolean;
@@ -59,13 +70,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   payroll: [],
   notifications: [],
   roles: [],
+  designations: [],
+  // 3. Initialize holidays as an empty array
+  holidays: [],
   theme: 'light',
   sidebarOpen: false,
   loading: true,
   unsubscribeListeners: null,
 
   initializeAuth: () => {
-    // using listenToAuthChanges
     authService.listenToAuthChanges((user, profile) => {
       set({ user: profile, loading: false });
       if (profile) {
@@ -81,7 +94,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await authService.loginUser(email, password);
     } catch (e) {
       console.error(e);
-      throw e; // Throw so component sees the error
+      throw e;
     }
   },
 
@@ -89,7 +102,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await authService.logoutUser();
     } finally {
-      // Regardless of success/fail, reset state client-side
       set({ user: null });
     }
   },
@@ -103,7 +115,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   startListeners: () => {
-    get().stopListeners(); // Safely clear any previous ones
+    get().stopListeners(); 
 
     const unsubs = [
       teacherService.subscribeToTeachers((teachers) => {
@@ -126,6 +138,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       }),
       roleService.subscribeToRoles((roles) => {
         set({ roles });
+      }),
+      designationService.subscribeToDesignations((designations) => {
+        set({ designations });
+      }),
+      // 4. Add the Holiday listener
+      holidayService.subscribeToHolidays((holidays) => {
+        set({ holidays });
       })
     ];
 

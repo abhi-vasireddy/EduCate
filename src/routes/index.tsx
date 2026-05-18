@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '../layouts/AppLayout';
 import { Dashboard } from '../pages/Dashboard';
@@ -11,6 +16,8 @@ import { Payroll } from '../pages/Payroll';
 import { Settings } from '../pages/Settings';
 import { Login } from '../pages/Login';
 import { TeacherProfile } from '../pages/TeacherProfile';
+import { SetupAdmin } from '../pages/SetupAdmin';
+import { ProtectedRoute } from '../components/ProtectedRoute'; // Import ProtectedRoute
 
 export const router = createBrowserRouter([
   {
@@ -19,7 +26,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: '',
@@ -27,39 +38,79 @@ export const router = createBrowserRouter([
       },
       {
         path: 'teachers',
-        element: <Teachers />,
+        element: (
+          <ProtectedRoute requiredPermission="view_teachers">
+            <Teachers />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'teachers/:id',
-        element: <TeacherProfile />,
+        element: (
+          <ProtectedRoute requiredPermission="view_teachers">
+            <TeacherProfile />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'attendance',
-        element: <Attendance />,
+        element: (
+          <ProtectedRoute requiredPermission="view_attendance">
+            <Attendance />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'leaves',
-        element: <Leaves />,
+        element: (
+          <ProtectedRoute requiredPermission="view_leaves">
+            <Leaves />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'tickets',
-        element: <Tickets />,
+        element: (
+          <ProtectedRoute requiredPermission="view_tickets">
+            <Tickets />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'hierarchy',
-        element: <Hierarchy />,
+        element: (
+          <ProtectedRoute requiredPermission="view_hierarchy">
+            <Hierarchy />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'roles',
-        element: <Roles />,
+        element: (
+          <ProtectedRoute requiredPermission="view_roles">
+            <Roles />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'payroll',
-        element: <Payroll />,
+        element: (
+          <ProtectedRoute requiredPermission="view_payroll">
+            <Payroll />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'settings',
-        element: <Settings />,
+        element: (
+          <ProtectedRoute requiredPermission="view_settings">
+            <Settings />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/setup-secret-admin', // You can visit this URL directly
+        element: <SetupAdmin />,
       },
     ],
   },

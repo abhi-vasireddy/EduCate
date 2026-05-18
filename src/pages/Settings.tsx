@@ -1,12 +1,58 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Building2, Clock, Bell, Palmtree, Plus } from 'lucide-react';
+import { Building2, Clock, Bell, Palmtree, Plus, Trash2, CalendarDays } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import { holidayService } from '../services/firebase/holidayService';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogTrigger 
+} from '@/components/ui/dialog';
 
 export function Settings() {
+  const { holidays } = useAppStore();
+  const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
+  const [newHoliday, setNewHoliday] = useState({ title: '', date: '', type: 'Public' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAddHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHoliday.title || !newHoliday.date) return;
+    
+    setIsSubmitting(true);
+    try {
+      await holidayService.addHoliday(newHoliday);
+      setNewHoliday({ title: '', date: '', type: 'Public' });
+      setIsHolidayDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to add holiday:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this holiday?")) return;
+    try {
+      await holidayService.deleteHoliday(id);
+    } catch (error) {
+      console.error("Failed to delete holiday:", error);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
@@ -121,30 +167,86 @@ export function Settings() {
         
         <TabsContent value="holidays">
            <Card className="border-border/50">
-             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Palmtree className="w-5 h-5 text-primary" />
-                <CardTitle>Holiday Calendar</CardTitle>
+             <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Palmtree className="w-5 h-5 text-primary" />
+                  <CardTitle>Holiday Calendar</CardTitle>
+                </div>
+                <CardDescription>Manage school holidays and non-working days.</CardDescription>
               </div>
-              <CardDescription>Manage school holidays and non-working days.</CardDescription>
+              
+              <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" /> Add Holiday
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Holiday</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleAddHoliday} className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="holidayTitle">Holiday Title</Label>
+                      <Input 
+                        id="holidayTitle" 
+                        value={newHoliday.title}
+                        onChange={(e) => setNewHoliday({...newHoliday, title: e.target.value})}
+                        placeholder="e.g. Winter Break" 
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="holidayDate">Date</Label>
+                      <Input 
+                        id="holidayDate" 
+                        type="date"
+                        value={newHoliday.date}
+                        onChange={(e) => setNewHoliday({...newHoliday, date: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? "Adding..." : "Confirm Holiday"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
-               <Button variant="outline" className="gap-2 mb-4">
-                 <Plus className="w-4 h-4" /> Add Holiday
-               </Button>
                <div className="border border-border/50 rounded-lg divide-y divide-border/50">
-                  <div className="flex justify-between items-center p-4 hover:bg-muted/30">
-                     <div className="font-medium">Summer Break Starts</div>
-                     <div className="text-sm text-muted-foreground">June 15, 2026</div>
-                  </div>
-                  <div className="flex justify-between items-center p-4 hover:bg-muted/30">
-                     <div className="font-medium">Independence Day</div>
-                     <div className="text-sm text-muted-foreground">July 4, 2026</div>
-                  </div>
-                  <div className="flex justify-between items-center p-4 hover:bg-muted/30">
-                     <div className="font-medium">Staff Orientation</div>
-                     <div className="text-sm text-muted-foreground">August 20, 2026</div>
-                  </div>
+                  {holidays.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                      <CalendarDays className="w-8 h-8 opacity-20" />
+                      <p>No holidays configured yet.</p>
+                    </div>
+                  ) : (
+                    holidays.map((holiday) => (
+                      <div key={holiday.id} className="flex justify-between items-center p-4 hover:bg-muted/30 group">
+                         <div className="space-y-0.5">
+                            <div className="font-medium">{holiday.title}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(holiday.date).toLocaleDateString('en-US', {
+                                month: 'long',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </div>
+                         </div>
+                         <Button 
+                           variant="ghost" 
+                           size="icon" 
+                           className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 transition-opacity"
+                           onClick={() => holidayService.deleteHoliday(holiday.id!)}
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </Button>
+                      </div>
+                    ))
+                  )}
                </div>
             </CardContent>
            </Card>
